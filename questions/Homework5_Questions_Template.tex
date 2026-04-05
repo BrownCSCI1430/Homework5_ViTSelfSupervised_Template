@@ -1,0 +1,212 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% CSCI 1430 Written Question Template
+%
+% This is a LaTeX document. LaTeX is a markup language for producing documents.
+% You will fill out this document, compile it into a PDF document, then upload the PDF to Gradescope.
+%
+% To compile it into a PDF you can:
+% - Use vscode! Install a LaTeX distribution (all common OS): http://www.latex-project.org/get/
+% + VSCode extension: https://marketplace.visualstudio.com/items?itemName=James-Yu.latex-workshop
+% - Use an online tool: https://www.overleaf.com/ - most LaTeX packages are pre-installed here (e.g., \usepackage{}).
+%
+% If you need help with LaTeX, please come to office hours.
+% Or, there is plenty of help online:
+% https://en.wikibooks.org/wiki/LaTeX
+%
+% Good luck!
+% The CSCI1430 staff
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass{csci1430}
+
+\begin{document}
+\title{Homework 5 Written Questions}
+\HomeworkShortName{HW5}
+\maketitle
+
+\writeinstructions
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\pagebreak
+\begin{question}[points=14,drawbox=false]
+Vision Transformers (ViTs) process images by splitting them into patches, projecting them to latent vectors as patch embeddings, and applying self-attention. In this question, we explore the geometric properties of self-attention and its computational cost.
+
+Recall from HW4 that an operation is \emph{equivariant} to a transformation if transforming the input produces a correspondingly transformed output, and \emph{invariant} if the output does not change at all.
+
+Recall also that we defined a \emph{global} property as one that holds across the whole image equally, and a \emph{local} property as one that holds only within a region.
+\end{question}
+
+\begin{subquestion}[points=4]
+\textbf{Self-attention without positional encoding---pixel transforms.}
+Consider a ViT with no positional encoding. The transformation is applied to the image pixels before patch extraction. Characterize the properties of ``bare'' self-attention. Place \filled~in all relevant answers.
+\end{subquestion}
+
+\begin{answer}\noindent
+\setlength{\tabcolsep}{12pt}
+\begin{tabular}{l|c|c|c|c|c}
+\textbf{Transformation} & \rotatebox{90}{\textbf{Global Equivariant}} & \rotatebox{90}{\textbf{Global Invariant}} & \rotatebox{90}{\textbf{Local Equivariant}} & \rotatebox{90}{\textbf{Local Invariant}} & \rotatebox{90}{\textbf{None}} \\
+\hline
+Translation by $\Delta x=1$ & \cbox & \cbox & \cbox & \cbox & \cbox \\
+Translation by $\Delta x=2$ & \cbox & \cbox & \cbox & \cbox & \cbox \\
+Rotation by $30^{\circ}$ & \cbox & \cbox & \cbox & \cbox & \cbox \\
+Rotation by $90^{\circ}$ & \cbox & \cbox & \cbox & \cbox & \cbox \\
+Scale by $2.0\times$ & \cbox & \cbox & \cbox & \cbox & \cbox \\
+Scale by $0.3\times$ & \cbox & \cbox & \cbox & \cbox & \cbox \\
+Reflection (horizontal flip) & \cbox & \cbox & \cbox & \cbox & \cbox \\
+Permutation (pixel pos.~swap) & \cbox & \cbox & \cbox & \cbox & \cbox \\
+\end{tabular}
+\end{answer}
+
+\pagebreak
+\begin{subquestion}[points=2]
+\textbf{Self-attention without positional encoding---patch embeddings.}
+Beyond the pixel level to consider the patch embeddings themselves, what invariances or equivariances hold through a self attention layer? Why? \textbf{[1--2 sentences]}
+\end{subquestion}
+
+\begin{answer}[height=14]
+
+\end{answer}
+
+\pagebreak
+\begin{subquestion}[points=4]
+\textbf{Adding positional encoding.}
+
+ViTs add a learned positional encoding to each patch embedding before self-attention. Each spatial position in the patch grid has a unique, fixed encoding vector added to its embedding.
+
+How does this change for each of translation, rotation, scaling, reflection, and permutation properties from Q1.1 and Q1.2? \textbf{[4--8 sentences]}
+\end{subquestion}
+
+\begin{answer}[height=28]
+
+\end{answer}
+
+
+\pagebreak
+\begin{subquestion}[points=4]
+\textbf{Computational cost of self-attention.}
+
+Self-attention computes $\text{softmax}(QK^\top / \sqrt{d})V$, where $Q, K, V \in \mathbb{R}^{N \times D}$, $N$ is the number of patches, and $D$ is the embedding dimension. The dominant cost is the $QK^\top$ matrix multiplication, which is $O(N^2 D)$.
+
+For a $224 \times 224$ image with $16 \times 16$ patches, $N = 14 \times 14 = 196$.
+
+\vspace{0.5em}
+\noindent (a) If we halve the patch size to $8 \times 8$, how many patches $N$ do we get?
+
+\vspace{0.5em}
+\noindent (b) By what factor does the self-attention cost change compared to $16 \times 16$ patches?
+
+\vspace{0.5em}
+\noindent (c) By contrast, if the number of spatial positions in a feature map quadruples (as it does when halving patch size), by what factor does the cost of a standard convolutional layer change?
+
+\vspace{0.5em}
+\noindent (d) Using larger patch sizes ameliorates the computational cost of self-attention. What trade-off does varying patch size induce when considering the visual features within images? \textbf{[2--3 sentences]}
+\end{subquestion}
+
+\begin{answer}[height=20]
+(a) $N =$
+
+\vspace{1em}
+(b) Factor:
+
+\vspace{1em}
+(c) CNN factor:
+
+\vspace{1em}
+(d)
+\end{answer}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\pagebreak
+
+\begin{question}[points=12,drawbox=false]
+DINO is a self-supervised optimization method that learns a representation by having a student network match the output of a momentum teacher network across different views of the same image. In this question, we explore how DINO's hyperparameters affect training and the learned representation.
+\end{question}
+
+\begin{subquestion}[points=3]
+\textbf{Temperature-sharpened softmax.}
+
+In DINO, both the student and teacher produce output vectors $\mathbf{z} \in \mathbb{R}^K$. These are converted to probability distributions using a \emph{temperature-sharpened softmax}:
+\[
+p_i = \frac{\exp(z_i / \tau)}{\sum_{j=1}^{K} \exp(z_j / \tau)}
+\]
+where $\tau > 0$ is the temperature. 
+
+What is the effect of \emph{decreasing} $\tau$ toward zero? Select all that apply.
+\end{subquestion}
+
+\begin{answerlist}
+    \item The output distribution becomes more uniform (all $p_i$ become equal).
+    \item The output distribution becomes more peaked (one $p_i$ dominates).
+    \item The logits are scaled but their relative ordering is unchanged, so the relative output distribution stays the same.
+    \item The entropy of the output distribution increases.
+    \item The entropy of the output distribution stays the same.
+    \item The entropy of the output distribution decreases.
+
+\end{answerlist}
+
+
+\pagebreak
+\begin{subquestion}[points=3]
+\textbf{Temperature asymmetry.}
+
+DINO uses a lower temperature for the teacher ($\tau_t = 0.04$) than the student ($\tau_s = 0.1$).
+
+What happens to the teacher's output distribution as $\tau_t \rightarrow 0$? What about as $\tau_t \rightarrow \infty$? Why is it important that $\tau_t < \tau_s$? \textbf{[3--4 sentences]}
+\end{subquestion}
+
+\begin{answer}[height=14]
+
+\end{answer}
+
+
+\pagebreak
+\begin{subquestion}[points=3]
+\textbf{EMA momentum and training stability.}
+
+The teacher's parameters $\theta_t$ are not trained by gradient descent. Instead, they are updated each step via an \emph{exponential moving average} (EMA) of the student's parameters $\theta_s$:
+\[
+\theta_t \leftarrow \lambda \cdot \theta_t + (1 - \lambda) \cdot \theta_s
+\]
+where $\lambda \in [0, 1]$ is the \emph{momentum}. DINO uses $\lambda = 0.996$.
+
+Describe how the teacher's targets evolve and whether training succeeds or fails in each of these three scenarios. \textbf{[2 sentences each]}
+\end{subquestion}
+
+\begin{answer}[height=16]
+(a) $\lambda = 0$ (teacher is set equal to student every step):
+
+\vspace{2.5em}
+(b) $\lambda = 1$ (teacher never updates):
+
+\vspace{2.5em}
+(c) $\lambda = 0.996$ (DINO's default):
+\end{answer}
+
+
+\pagebreak
+\begin{subquestion}[points=3]
+\textbf{Cross-view pairing.}
+
+The teacher sees two global crops---large views covering 40--100\% of the image. The student sees all crops---two global + several local crops covering 5--40\% of the image. All crops are placed into a shared array. The loss is computed over all \emph{cross-view} pairs: teacher crop $i$ with student crop $j$, where $i \neq j$.
+
+Why do we skip same-view pairs ($i = j$)? And why does the teacher see only global crops while the student also sees local crops? \textbf{[4--6 sentences]}
+\end{subquestion}
+
+\begin{answer}[height=20]
+
+\end{answer}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\pagebreak
+
+\writefeedback
+
+% \pagebreak
+% \section*{Any additional pages would go here.}
+
+
+\end{document}
