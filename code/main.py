@@ -73,8 +73,8 @@ def main():
 
     elif args.task == 't2_rotation':
         rotation_data = student.CropRotationDataset(
-            os.path.join(args.data, 'single-images', 'train'),
             device,
+            os.path.join(args.data, 'single-images', 'train'),
             crop_size=hp.ROTATION_CROP_SIZE,
         )
         classify_data = student.SceneDataset(
