@@ -1,35 +1,50 @@
-#!/bin/bash
-#SBATCH -J hw5_train
-#SBATCH -o slurm-%j.out
-#SBATCH -e slurm-%j.err
-#SBATCH -N 1
+# ============================================================
+# Homework 5: Vision Transformers and Self-Supervised Learning
+# CSCI1430 - Computer Vision
+# Brown University
+# SLURM job script
+#
+# Usage:
+#   sbatch slurm_train.sh t0_attention   # runs Task 0 Attention Maps
+#   sbatch slurm_train.sh t1_rotation    # runs Task 1 End-to-end
+#   sbatch slurm_train.sh t2_transfer    # runs Task 2 Rotation Pretraining
+#   sbatch slurm_train.sh t3_dino        # runs Task 3 Mini-DINO Pretraining
+#   sbatch slurm_train.sh t4_transfer    # runs Task 4 Transfer Learning Evaluation
+#
+# Monitor your job:
+#   myq                      # check job status
+#   cat slurm-<jobid>.out    # view stdout
+#   cat slurm-<jobid>.err    # view stderr
+# ============================================================
+
+#SBATCH -p gpu
+#SBATCH --gres=gpu:1
 #SBATCH -n 4
 #SBATCH --mem=16G
 #SBATCH -t 02:00:00
-#SBATCH -p gpu
-#SBATCH --gres=gpu:1
+#SBATCH -J hw5_train
+#SBATCH -o slurm-%j.out
+#SBATCH -e slurm-%j.err
 
-# HW5: Vision Transformers and Self-Supervised Learning
-# Run all five tasks sequentially.
+# Default task if none provided as argument
+TASK=${1:-t0_attention}
 
-echo "Starting HW5 training on $(hostname) at $(date)"
+echo "============================================"
+echo "Job ID:    $SLURM_JOB_ID"
+echo "Task:      $TASK"
+echo "Node:      $(hostname)"
+echo "Started:   $(date)"
 echo "GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo 'none')"
+echo "============================================"
 
-cd "$(dirname "$0")"
+# Run from the code directory
+cd "$SLURM_SUBMIT_DIR"
 
-echo "=== Task 0: Attention Visualization ==="
-uv run python main.py --task t0_attention
+source ~/.local/bin/env
 
-echo "=== Task 1: End-to-End ViT ==="
-uv run python main.py --task t1_endtoend
+# Run training
+uv run python main.py --task "$TASK"
 
-echo "=== Task 2: Rotation Prediction ==="
-uv run python main.py --task t2_rotation
-
-echo "=== Task 3: Mini-DINO Pretraining ==="
-uv run python main.py --task t3_dino
-
-echo "=== Task 4: Transfer Evaluation ==="
-uv run python main.py --task t4_transfer
-
-echo "All tasks complete at $(date)"
+echo "============================================"
+echo "Finished:  $(date)"
+echo "============================================"
