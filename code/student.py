@@ -82,7 +82,9 @@ def visualize_attention(model, image_tensor, save_path, style='fade', device='cp
     """
     # TODO:
     #   Step 1: Extract attention maps
-    #   1. Call get_attention_weights(model, image_tensor, device)
+    #   0. Normalize image_tensor for the ViT forward pass (ImageNet stats).
+    #      Keep the original image_tensor for display in Step 2.
+    #   1. Call get_attention_weights(model, normalized_image, device)
     #      -> (num_heads, num_tokens, num_tokens)
     #   2. Extract [class] row: attn[:, 0, num_prefix:]
     #      -> (num_heads, num_patches)
@@ -95,6 +97,7 @@ def visualize_attention(model, image_tensor, save_path, style='fade', device='cp
     #   Step 2: Build visualization panels
     #
     #   Convert image_tensor[0] to numpy (H, W, 3) for display.
+    #   image_tensor is in [0, 1] — used directly for display.
     #
     #   Implement style='gray' first — simpler:
     #   4. For each head:
@@ -144,30 +147,45 @@ class DINOMultiCropDataset(Dataset):
 
     Arguments:
         device           -- torch device for GPU operations
-        data_dir         -- path to dataset root (images in data_dir/train/)
+        data_dir         -- path (or list of paths) to directories containing images
+                            (searched recursively for .jpg/.png)
         global_crop_size -- pixel size of global crops (default: 224)
         local_crop_size  -- pixel size of local crops (default: 96)
         num_local_crops  -- number of local crops per image (default: 6)
+        num_samples      -- number of samples per epoch (default: hp.DINO_NUM_SAMPLES).
+                            Controls how many gradient steps per epoch. Since each call
+                            to __getitem__ generates fresh random crops, setting this
+                            larger than the number of images lets us sample many diverse
+                            views from the same high-resolution images.
 
     After construction, provides:
         .image_paths     -- list of image file paths
-        len(dataset)     -- number of images
+        len(dataset)     -- num_samples (NOT number of images)
     """
 
     def __init__(self, device, data_dir, global_crop_size=hp.DINO_GLOBAL_CROP_SIZE,
                  local_crop_size=hp.DINO_LOCAL_CROP_SIZE,
-                 num_local_crops=hp.DINO_NUM_LOCAL_CROPS):
+                 num_local_crops=hp.DINO_NUM_LOCAL_CROPS,
+                 num_samples=hp.DINO_NUM_SAMPLES):
         # TODO:
-        #   1. Load all image paths from data_dir/train/ using ImageFolder.
+        #   1. Find all image paths. data_dir can be a string or list of strings.
+        #      Search each directory recursively for .jpg/.png files.
         #      Store as self.image_paths.
-        #   2. Store self.num_local_crops and self.device.
+        #   2. Store self.num_local_crops, self.device, and self.num_samples.
         #   3. Define self.global_transform and self.local_transform
         #      as transforms.Compose pipelines (see __getitem__ for usage).
+        #
+        #      Important: timm ViT models expect ImageNet-normalized inputs.
+        #      Add transforms.Normalize(mean=(0.485, 0.456, 0.406),
+        #                               std=(0.229, 0.224, 0.225))
+        #      as the last step in each pipeline (after ToTensor).
+        #      Without this, the ViT produces nearly identical features for
+        #      all images, making DINO training impossible.
 
         raise NotImplementedError
 
     def __len__(self):
-        # TODO
+        # TODO: return self.num_samples
         raise NotImplementedError
 
     def __getitem__(self, idx):
@@ -176,7 +194,8 @@ class DINOMultiCropDataset(Dataset):
         Each crop is a (3, crop_size, crop_size) tensor in [0, 1].
         """
         # TODO:
-        #   1. Load the image at self.image_paths[idx] as a PIL Image (RGB).
+        #   1. Load the image at self.image_paths[idx % num_images] as a PIL Image.
+        #      The modulo cycles through images when num_samples > num_images.
         #   2. Generate 2 global crops (large views of the image).
         #   3. Generate num_local_crops local crops (small views).
         #

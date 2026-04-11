@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.transforms as transforms
 
 
 # ---------------------------------------------------------------------------
@@ -215,9 +216,12 @@ class DINODashboard:
             if ema_momentum is not None:
                 self.ema_momentums.append(ema_momentum)
 
-            # Attention map snapshot
+            # Attention map snapshot (normalize for ViT forward pass)
             if encoder is not None and self.sample_image is not None:
-                raw = get_attention_weights(encoder, self.sample_image, self.device)
+                _norm = transforms.Normalize(
+                    mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+                _img_norm = _norm(self.sample_image[0]).unsqueeze(0)
+                raw = get_attention_weights(encoder, _img_norm, self.device)
                 num_prefix = getattr(encoder, 'num_prefix_tokens', 1)
                 cls_attn = raw[:, 0, num_prefix:]
                 h = w = int(cls_attn.shape[1] ** 0.5)

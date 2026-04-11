@@ -85,9 +85,15 @@ def main():
         t2_rotation(rotation_data, classify_data, device, APPROACHES)
 
     elif args.task == 't3_dino':
+        # Train on all high-res images (single-images + highres-images).
+        # We pass both directories; the dataset searches recursively for images.
+        dino_dirs = [
+            os.path.join(args.data, 'single-images'),
+            os.path.join(args.data, 'highres-images'),
+        ]
         dino_data = student.DINOMultiCropDataset(
             device,
-            os.path.join(args.data, 'single-images'),
+            dino_dirs,
         )
         student.t3_dino_pretrain(dino_data, device, APPROACHES)
 
