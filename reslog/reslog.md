@@ -1,37 +1,6 @@
 # HW5 Results Log
 
-<!-- Include your plots and brief captions here. Anonymous grading — don't include your name. -->
 
-## Task 0: Attention Map Visualization
-
-<!-- Include attention maps from pretrained and random ViTs (both fade and gray styles). -->
-<!-- What do you observe? How do the heads differ? -->
-
-## Task 1: End-to-End ViT
-
-<!-- Training curves (train + val accuracy vs epoch). -->
-<!-- How does this compare to your HW4 CNN? -->
-
-## Task 2: Rotation Prediction
-
-<!-- Attention maps from the rotation-pretrained ViT. -->
-<!-- Do the heads look different from random? -->
-
-## Task 3: Mini-DINO Pretraining
-
-<!-- DINO training loss curve. -->
-<!-- Dashboard screenshot showing training dynamics. -->
-<!-- Attention map visualizations showing head specialization. -->
-
-## Task 4: Transfer Evaluation
-
-<!-- All five validation accuracy curves on one plot. -->
-<!-- Side-by-side attention maps: random / rotation / DINO / DINOv3 (both styles). -->
-<!-- Brief description of what you found. -->
-
-## Extra Credit
-
-<!-- Document any extra credit attempted, where it is in your code, and its results. -->
 
 
 
