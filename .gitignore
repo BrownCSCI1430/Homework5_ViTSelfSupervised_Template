@@ -4,6 +4,8 @@ _cache/
 code/results/*.pt
 code/results/*.npy
 code/results/*.json
+code/results/xc_highres/*.pt
+code/results/xc_highres/*.npy
 *.aux
 *.fdb_latexmk
 *.fls
