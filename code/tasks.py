@@ -16,6 +16,7 @@ import torchvision.transforms as transforms
 import student
 import hyperparameters as hp
 from helpers import create_vit_tiny, load_dinov3_encoder
+from combine_attention import combine_attention_maps
 
 
 # ============================================================================
@@ -238,3 +239,6 @@ def t4_transfer(classify_data, device, approaches, data_dir):
             student.visualize_attention(
                 enc, tensor, os.path.join('results', f'compare_{img_name}_gray_{label}.png'),
                 style='gray', device=device)
+
+    # Stack the per-model maps into side-by-side figures (compare_grid_*.png)
+    combine_attention_maps('results')

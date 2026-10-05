@@ -85,17 +85,29 @@ def main():
         t2_rotation(rotation_data, classify_data, device, APPROACHES)
 
     elif args.task == 't3_dino':
-        # Train on all high-res images (single-images + highres-images).
-        # We pass both directories; the dataset searches recursively for images.
-        dino_dirs = [
-            os.path.join(args.data, 'single-images'),
-            os.path.join(args.data, 'highres-images'),
-        ]
+        # Train on the two single images (the same data as Task 2 rotation).
+        # The dataset searches each directory recursively for images.
+        dino_dirs = [os.path.join(args.data, 'single-images')]
+        approaches = APPROACHES
+
+        # Extra credit: also train on data/highres-images, saving all DINO
+        # outputs to results/xc_highres/ so the baseline is not overwritten.
+        if hp.DINO_USE_HIGHRES:
+            dino_dirs.append(os.path.join(args.data, 'highres-images'))
+            xc_dir = os.path.join('results', 'xc_highres')
+            os.makedirs(xc_dir, exist_ok=True)
+            approaches = dict(APPROACHES)
+            approaches['dino'] = APPROACHES['dino']._replace(
+                weights=os.path.join(xc_dir, 'dino_encoder.pt'),
+                curve_train=os.path.join(xc_dir, 'train_dino_loss.npy'))
+            print(f"Extra credit: training on single-images + highres-images; "
+                  f"saving DINO outputs to {xc_dir}/")
+
         dino_data = student.DINOMultiCropDataset(
             device,
             dino_dirs,
         )
-        student.t3_dino_pretrain(dino_data, device, APPROACHES)
+        student.t3_dino_pretrain(dino_data, device, approaches)
 
     elif args.task == 't4_transfer':
         classify_data = student.SceneDataset(
