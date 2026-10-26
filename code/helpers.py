@@ -151,8 +151,13 @@ class DINODashboard:
       - Loss curve
       - Teacher/student output entropy (collapse detection)
       - Center vector norm (centering health)
-      - Attention map evolution on a fixed sample image
       - EMA momentum schedule
+      - Per-head [CLS] attention maps on a fixed sample image
+      - Student and teacher output distributions P(k) for a few images
+
+    A numbered copy is saved every epoch to <save_dir>/dashboard/
+    (dino_dashboard_ep000.png, ep001.png, ...) so you can flip through
+    the progression; <save_dir>/dino_dashboard.png is always the latest.
 
     Usage in your training loop:
         dashboard = DINODashboard(save_dir='results', sample_image=some_tensor)
@@ -173,7 +178,8 @@ class DINODashboard:
         self.save_dir = save_dir
         self.sample_image = sample_image  # (1, 3, H, W) tensor for attention maps
         self.device = device
-        os.makedirs(save_dir, exist_ok=True)
+        self.epoch_dir = os.path.join(save_dir, 'dashboard')
+        os.makedirs(self.epoch_dir, exist_ok=True)
 
         # History
         self.losses = []
@@ -182,6 +188,10 @@ class DINODashboard:
         self.center_norms = []
         self.ema_momentums = []
         self.attn_snapshots = []  # list of (epoch, attention_maps)
+
+        # Latest output distributions, (n, K) each
+        self.student_probs = None
+        self.teacher_probs = None
 
     def _entropy(self, logits, temp):
         """Compute mean entropy of softmax distribution."""
@@ -192,8 +202,8 @@ class DINODashboard:
 
     def update(self, epoch, loss, student_out, teacher_out, center,
                encoder=None, ema_momentum=None,
-               student_temp=0.1, teacher_temp=0.04,
-               update_every=5):
+               student_temp=None, teacher_temp=None,
+               update_every=1, num_dist_samples=3):
         """Record metrics and regenerate dashboard.
 
         Parameters
@@ -205,15 +215,29 @@ class DINODashboard:
         center : torch.Tensor, shape (K,)
         encoder : nn.Module or None — student encoder for attention maps
         ema_momentum : float or None — current EMA lambda
-        student_temp : float
-        teacher_temp : float
-        update_every : int — regenerate the PNG every N epochs
+        student_temp : float or None — defaults to hp.DINO_STUDENT_TEMP
+        teacher_temp : float or None — defaults to hp.DINO_TEACHER_TEMP
+        update_every : int — save a dashboard PNG every N epochs
+        num_dist_samples : int — number of images shown in the P(k) panels
         """
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
+        import hyperparameters as hp
+
+        if student_temp is None:
+            student_temp = hp.DINO_STUDENT_TEMP
+        if teacher_temp is None:
+            teacher_temp = hp.DINO_TEACHER_TEMP
+        self.student_temp = student_temp
+        self.teacher_temp = teacher_temp
 
         with torch.no_grad():
+            # Work on CPU copies so center/outputs can come from any device
+            student_out = student_out.detach().float().cpu()
+            teacher_out = teacher_out.detach().float().cpu()
+            center = center.detach().float().cpu()
+
             self.losses.append(loss)
             self.student_entropies.append(self._entropy(student_out, student_temp))
             self.teacher_entropies.append(
@@ -221,6 +245,15 @@ class DINODashboard:
             self.center_norms.append(center.norm().item())
             if ema_momentum is not None:
                 self.ema_momentums.append(ema_momentum)
+
+            # Output distributions P(k) for the first few images in the batch
+            # (same softmax + temperature + centering as the DINO loss)
+            n = min(num_dist_samples, student_out.shape[0])
+            self.student_probs = torch.softmax(
+                student_out[:n] / student_temp, dim=-1).numpy()
+            self.teacher_probs = torch.softmax(
+                (teacher_out[:n] - center.unsqueeze(0)) / teacher_temp,
+                dim=-1).numpy()
 
             # Attention map snapshot (normalize for ViT forward pass)
             if encoder is not None and self.sample_image is not None:
@@ -237,16 +270,17 @@ class DINODashboard:
         if epoch % update_every != 0 and epoch != 0:
             return
 
-        # --- Build the dashboard (2x2 grid, with optional 5th attention panel) ---
+        # --- Build the dashboard ---
+        #   Row 0: loss | entropy | ||center|| | EMA lambda
+        #   Row 1: input image | attention head 0 | head 1 | ...  (if available)
+        #   Row 2: student P(k) | teacher P(k)
         has_attn = self.sample_image is not None and len(self.attn_snapshots) > 0
-        if has_attn:
-            fig, axes = plt.subplots(2, 3, figsize=(12, 7))
-            axes_flat = [axes[0, 0], axes[0, 1], axes[0, 2],
-                         axes[1, 0], axes[1, 1]]
-            axes[1, 2].axis('off')  # hide unused cell
-        else:
-            fig, axes = plt.subplots(2, 2, figsize=(8, 7))
-            axes_flat = axes.flat
+        num_heads = self.attn_snapshots[-1][1].shape[0] if has_attn else 0
+        ncols = max(4, num_heads + 1)
+        nrows = 3 if has_attn else 2
+        fig = plt.figure(figsize=(3.2 * ncols, 3.3 * nrows))
+        gs = fig.add_gridspec(nrows, ncols)
+        axes_flat = [fig.add_subplot(gs[0, c]) for c in range(4)]
         fig.patch.set_facecolor('white')
         epochs = list(range(len(self.losses)))
 
@@ -301,34 +335,75 @@ class DINODashboard:
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
 
-        # Panel 5: Attention map evolution (last snapshot, mean over heads)
+        # Row 1: Input image + per-head attention (last snapshot)
+        #   Each head is rescaled to [0, 1] for display; the title shows the
+        #   raw range (max - min) so nearly-uniform heads can be spotted.
+        #   For reference, uniform attention over 196 patches is ~0.005.
         if has_attn:
-            ax = axes_flat[4]
             ep, attn = self.attn_snapshots[-1]
-            mean_attn = attn.mean(dim=0).numpy()
-            # Upsample
-            h, w = mean_attn.shape
-            mean_attn_up = np.array(
-                F.interpolate(
-                    torch.tensor(mean_attn).unsqueeze(0).unsqueeze(0).float(),
-                    size=(56, 56), mode='bilinear', align_corners=False
-                )[0, 0]
-            )
-            mean_attn_up = (mean_attn_up - mean_attn_up.min()) / \
-                           (mean_attn_up.max() - mean_attn_up.min() + 1e-8)
-            ax.imshow(mean_attn_up, cmap='hot')
-            ax.set_title(f'Attn map (ep {ep})', fontsize=11, fontweight='bold')
+            ax = fig.add_subplot(gs[1, 0])
+            img = self.sample_image[0].permute(1, 2, 0).cpu().numpy()
+            ax.imshow(np.clip(img, 0, 1))
+            ax.set_title('Input', fontsize=11, fontweight='bold')
             ax.axis('off')
+            for i in range(num_heads):
+                a = attn[i].numpy()
+                a_range = a.max() - a.min()
+                a = (a - a.min()) / (a_range + 1e-8)
+                ax = fig.add_subplot(gs[1, i + 1])
+                ax.imshow(a, cmap='gray', vmin=0, vmax=1,
+                          interpolation='nearest')
+                ax.set_title(f'Head {i} (range {a_range:.3f})',
+                             fontsize=10, fontweight='bold')
+                ax.axis('off')
+
+        # Last row: output distributions P(k), student vs teacher
+        #   Same images (first few of the last batch, first global crop) in
+        #   both panels. The batch is shuffled, so the images change per epoch.
+        if self.student_probs is not None:
+            r = nrows - 1
+            half = ncols // 2
+            K = self.student_probs.shape[1]
+            x = np.arange(K)
+            ymax = max(self.student_probs.max(), self.teacher_probs.max())
+            colors = ['#E53935', '#1E88E5', '#43A047', '#8E24AA', '#FB8C00']
+            panels = [
+                (gs[r, :half], self.student_probs,
+                 f'Student P(k) = softmax(s / {self.student_temp:g})'),
+                (gs[r, half:], self.teacher_probs,
+                 f'Teacher P(k) = softmax((t - c) / {self.teacher_temp:g})'),
+            ]
+            for cell, probs, title in panels:
+                ax = fig.add_subplot(cell)
+                for j in range(probs.shape[0]):
+                    ax.bar(x, probs[j], width=1.0, alpha=0.5,
+                           color=colors[j % len(colors)], label=f'Image {j}')
+                ax.axhline(1.0 / K, color='gray', linestyle='--',
+                           linewidth=1, label='Uniform (1/K)')
+                ax.set_xlim(-0.5, K - 0.5)
+                ax.set_ylim(0, ymax * 1.1 + 1e-8)
+                ax.set_title(title, fontsize=11, fontweight='bold')
+                ax.set_xlabel('Output dimension k')
+                ax.grid(True, alpha=0.15)
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+            ax.legend(fontsize=8, loc='upper right')
 
         fig.suptitle(f'DINO Training Dashboard — Epoch {epoch}',
                      fontsize=13, fontweight='bold')
         fig.tight_layout()
+        fig.savefig(os.path.join(self.epoch_dir,
+                                 f'dino_dashboard_ep{epoch:03d}.png'),
+                    dpi=100, bbox_inches='tight', facecolor='white')
         fig.savefig(os.path.join(self.save_dir, 'dino_dashboard.png'),
                     dpi=120, bbox_inches='tight', facecolor='white')
         plt.close(fig)
 
     def save_attention_evolution(self, filename='attention_evolution.png'):
-        """Save a grid showing attention maps at different training epochs."""
+        """Save a grid of per-head attention maps at different training epochs.
+
+        Rows are attention heads, columns are epochs.
+        """
         if not self.attn_snapshots:
             return
 
@@ -339,21 +414,29 @@ class DINODashboard:
         n = len(self.attn_snapshots)
         n_show = min(n, 8)
         indices = np.linspace(0, n - 1, n_show, dtype=int)
+        num_heads = self.attn_snapshots[0][1].shape[0]
 
-        fig, axes = plt.subplots(1, n_show, figsize=(2.5 * n_show, 2.5))
-        if n_show == 1:
-            axes = [axes]
+        fig, axes = plt.subplots(num_heads, n_show,
+                                 figsize=(2.2 * n_show, 2.2 * num_heads),
+                                 squeeze=False)
 
-        for ax, idx in zip(axes, indices):
+        for col, idx in enumerate(indices):
             ep, attn = self.attn_snapshots[idx]
-            mean_attn = attn.mean(dim=0).numpy()
-            mean_attn = (mean_attn - mean_attn.min()) / \
-                        (mean_attn.max() - mean_attn.min() + 1e-8)
-            ax.imshow(mean_attn, cmap='hot')
-            ax.set_title(f'Epoch {ep}', fontsize=10)
-            ax.axis('off')
+            for head in range(num_heads):
+                a = attn[head].numpy()
+                a = (a - a.min()) / (a.max() - a.min() + 1e-8)
+                ax = axes[head, col]
+                ax.imshow(a, cmap='gray', vmin=0, vmax=1,
+                          interpolation='nearest')
+                ax.set_xticks([])
+                ax.set_yticks([])
+                if head == 0:
+                    ax.set_title(f'Epoch {ep}', fontsize=10)
+                if col == 0:
+                    ax.set_ylabel(f'Head {head}', fontsize=10)
 
-        fig.suptitle('[CLS] Attention Evolution', fontsize=13, fontweight='bold')
+        fig.suptitle('[CLS] Attention Evolution (per head)',
+                     fontsize=13, fontweight='bold')
         fig.tight_layout()
         fig.savefig(os.path.join(self.save_dir, filename),
                     dpi=150, bbox_inches='tight', facecolor='white')

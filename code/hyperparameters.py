@@ -31,6 +31,11 @@ DINO_LR = 5e-4
 DINO_BATCH_SIZE = 12
 DINO_NUM_SAMPLES = 500            # Samples per epoch (>> num images)
 
+# Extra credit (DINO with more diverse crops): set True to also train on the
+# 10 photos in data/highres-images. Outputs then go to results/xc_highres/
+# so your baseline DINO results in results/ are not overwritten.
+DINO_USE_HIGHRES = False
+
 # Multi-crop sizes
 DINO_GLOBAL_CROP_SIZE = 224       # Resolution of global crops
 DINO_LOCAL_CROP_SIZE = 96         # Resolution of local crops
