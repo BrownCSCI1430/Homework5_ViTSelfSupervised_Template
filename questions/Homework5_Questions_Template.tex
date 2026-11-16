@@ -203,7 +203,7 @@ Why do we skip same-view pairs ($i = j$)? And why does the teacher see only glob
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \pagebreak
 
-\begin{question}[points=6,drawbox=false]
+\begin{question}[points=12,drawbox=false]
 Stakeholders of automated decision-making systems often require explanations for the system's decisions. In some situations, there exists a \href{https://en.wikipedia.org/wiki/Right_to_explanation}{right to explanation}; the US Government's \href{https://www.whitehouse.gov/ostp/ai-bill-of-rights/}{Blueprint for an AI Bill of Rights} includes such a right. But the benefits of a technology may exist even if an explanation for its mechanism is unknown; the mechanism for the painkiller and anti-inflammatory drug aspirin, in wide use since the early 20th century, was only \href{https://en.wikipedia.org/wiki/History_of_aspirin\#Investigating_how_aspirin_works}{correctly identified in the 1970s}.
 
 For example, in medical imaging, hand-designed features from biological experts might lead to explainable methods for patients, physicians, and regulators. However, deep learning methods can show \href{https://drive.google.com/file/d/1bDAqEtW482OJeqMBt5A4AradVa4gf_o9/view}{higher test accuracy}, even if interpreting their ``black box'' nature to explain their decisions remains an open question.
@@ -211,14 +211,36 @@ For example, in medical imaging, hand-designed features from biological experts 
 Imagine that for your final project, you create a CNN to diagnose skin cancer from skin lesion images in the \href{https://challenge2020.isic-archive.com/}{International Skin Imaging Collaboration (ISIC) dataset}. In testing, you find that your CNN can detect this disease with 90\% accuracy. Prior technology can detect this disease with only 60\% accuracy. You have no medical qualification. You cannot explain how your CNN accurately detects the disease so accurately, just that it does.
 \end{question}
 
+\pagebreak
 \begin{subquestion}[points=6]
 Suppose you were asked by Rhode Island Hospital to consider using this model in a clinical setting. Describe three factors or assessments that would make you more or less confident in its use and explain why. \textbf{[6--9 sentences]}
 \end{subquestion}
 
-\begin{answer}[height=28]
+\begin{answer}[height=30]
 
 \end{answer}
 
+\pagebreak
+\begin{subquestion}[points=6,drawbox=false]
+There are many attempts to explain CNN predictions; we refer the interested reader to \href{https://christophm.github.io/interpretable-ml-book/}{Christoph Molar's Interpretable ML Book}. Let's consider three:
+
+\begin{enumerate}
+    \item Please see \href{https://adamharley.com/nn_vis/cnn/2d.html}{Adam Harley's neural network visualizer}, which visualizes how a CNN predicts numerals when trained on the MNIST dataset.
+    \item Take a look at the \href{https://christophm.github.io/interpretable-ml-book/lime.html\#example-7}{Local Interpretable Model-agnostic Explanations (LIME)} framework, used to attempt to explain model predictions. LIME assesses which image superpixels are important to a classification, independent of any inner workings of the model.
+    \item Saliency maps attempt to show which image pixels are sensitive to the classification via the dependence on the inner workings of the model via its gradients. Please read \href{https://christophm.github.io/interpretable-ml-book/pixel-attribution.html\#examples-6}{Sections 10.2.6--10.2.9} for examples and analysis.
+\end{enumerate}
+
+In the ISIC dataset, it was found that ``half of the images of benign lesions contain elliptical coloured patches (colour calibration charts), whereas the malignant lesion images contain none'' (\href{https://www.mdpi.com/2075-4418/12/1/40}{Nauta et al.}, see Figure 1 for patch examples) and that imaging rulers and standard surgical ink markers were unevenly distributed in the data. These can lead to spurious correlations in training where unimportant image features are associated with classification outcomes. \href{https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6694463/}{Winkler et al.} found that the presence of ink markings led to a 40\% increase in the false positive rate (see Figure 1 for ink marking examples).
+\end{subquestion}
+
+\pagebreak
+\begin{orangebox}
+To what extent would each of these interpretability methods improve your understanding of your medical imaging CNN's predictions, and why? To what extent would each of these interpretability methods help explain the CNNs decision to a patient? \textbf{[6--9 sentences]}
+\end{orangebox}
+
+\begin{answer}[height=30]
+
+\end{answer}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \pagebreak
 
